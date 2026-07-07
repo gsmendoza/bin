@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROD_APP="toolchest-production"
+
+echo "Fetching production database URL from Heroku..."
+heroku config:get DATABASE_URL --app "$PROD_APP"
