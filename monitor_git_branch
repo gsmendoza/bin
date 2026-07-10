@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CSV="$HOME/git_branch_sessions.csv"
+POLL_INTERVAL=60
+
+format_time() {
+  date '+%I:%M %p' | sed 's/^0//'
+}
+
+get_branch() {
+  git rev-parse --abbrev-ref HEAD
+}
+
+append_row() {
+  local branch="$1" start="$2" end="${3:-}"
+  printf '%s,%s,%s\n' "$branch" "$start" "$end" >> "$CSV"
+}
+
+start_session() {
+  local branch="$1"
+  current_branch="$branch"
+  current_start=$(format_time)
+  append_row "$current_branch" "$current_start" ""
+}
+
+close_current_session() {
+  if [[ -z "$current_branch" ]]; then
+    return
+  fi
+
+  local end_time
+  end_time=$(format_time)
+  head -n -1 "$CSV" > "${CSV}.tmp"
+  mv "${CSV}.tmp" "$CSV"
+  append_row "$current_branch" "$current_start" "$end_time"
+  current_branch=""
+  current_start=""
+}
+
+cleanup() {
+  close_current_session
+  exit 0
+}
+
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+  echo "Error: not a git repository" >&2
+  exit 1
+fi
+
+if [[ ! -f "$CSV" ]]; then
+  echo "Branch,Start Time,End Time" > "$CSV"
+fi
+
+current_branch=""
+current_start=""
+
+trap cleanup INT TERM
+
+start_session "$(get_branch)"
+
+while true; do
+  sleep "$POLL_INTERVAL"
+  branch=$(get_branch)
+  if [[ "$branch" != "$current_branch" ]]; then
+    close_current_session
+    start_session "$branch"
+  fi
+done
